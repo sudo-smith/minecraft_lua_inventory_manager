@@ -6,7 +6,6 @@ local sides = require("sides")
 local tr = component.transposer
 local event = require("event")
 
-
 ---------------------------------------------------------------------------------------------------
 --                                       GLOBAL VARIABLES                                        --
 ---------------------------------------------------------------------------------------------------
@@ -14,9 +13,9 @@ local event = require("event")
 -- CONSTANTS ---------------------------------------------------------------------------------------
 fileName = "message.log"
 dumpChestSide = sides.top
-colossalChestSide = sides.front
-sudoShelfChestSide = sides.right
-zietauShelfChestSide = sides.left
+libSide = sides.front
+sSide = sides.right
+zSide = sides.left
 numDumpChestSlots = tr.getInventorySize(dumpChestSide)
 -- start archiver and store thread to suspend or kill
 archiver = thread.create(archive)
@@ -26,6 +25,41 @@ archiver = thread.create(archive)
 -- xxxItemsInCollosal['xxx'] = {quantity = number, slots={slot1:number, slot2:number, ...}}
 nameItemsInCollosal = {}
 -- labelItemsInCollosal = {}
+
+---------------------------------------------------------------------------------------------------
+--                                           CLASSES                                             --
+---------------------------------------------------------------------------------------------------
+ItemEntry = {name = "", label = "", maxSlotSize = -1, quant = -1, slots={}}
+function ItemEntry:new(o, name, label, slots)
+    assert(o == nil or type(o) == "table")
+    assert(type(name) == "string")
+    assert(type(label) == "string")
+    assert(type(maxSlotSize) == "number")
+    assert(type(quant) == "number")
+    assert(slots == nil or type(slots) == "table")
+
+    o = o or {}
+    setmetatable(o, self)
+    self.__index = self
+    self.name = name
+    self.label = label
+    self.quant = quant
+    self.slots = slots
+
+    return o
+end
+
+function ItemEntry:remove(quant, sinkSlot)
+    assert(type(quant) == "number")
+
+    repeat
+        lastSlot = sinkSlot[#self.slots]
+        if tr.getSlotStackSize(colossalChestSide)
+end
+
+function ItemEntry:add(quant, )
+
+
 
 ---------------------------------------------------------------------------------------------------
 --                                        FUNCTIONS                                              --
@@ -50,7 +84,7 @@ end
 function parseEvent(id, a, b, c, d, e)
     if id == "key_down" then
         key = string.char(b)
-        player_name = d
+        playername = d
 
         -- if control is pressed, exit code
         if (key == "\0" and c == 29) then
@@ -59,11 +93,11 @@ function parseEvent(id, a, b, c, d, e)
             os.exit()
         end
     elseif id == "touch" then
-        player_name = e
+        playername = e
     end
 
-    assert(type(player_name) == "string")
-    return player_name
+    assert(type(playername) == "string")
+    return playername
 end
 
 function parseFile(fileName)
@@ -158,13 +192,13 @@ function archive()
     end
 end
 
-function moveItemToShelf(req_name, req_quant, isName, player_name)
-    assert(type(req_name) == "string")
+function moveItemToShelf(reqname, req_quant, isName, playername)
+    assert(type(reqname) == "string")
     assert(type(req_quant) == "number")
     assert(type(isName) == "boolean")
-    assert(type(player_name) == "string")
+    assert(type(playername) == "string")
 
-    if player_name == 'Zietau' then
+    if playername == 'Zietau' then
         shelfChestSide = zietauShelfChestSide
     else
         shelfChestSide = sudoShelfChestSide
@@ -173,33 +207,33 @@ function moveItemToShelf(req_name, req_quant, isName, player_name)
     moved_quant = 0
 
     if isName then
-        ie = nameItemsInCollosal[req_name]
+        ie = nameItemsInCollosal[reqname]
     else
-        -- ie = labelItemsInCollosal[req_name]
+        -- ie = labelItemsInCollosal[reqname]
     end
 
     if not ie then
-        print(req_name .. " not in library")
+        print(reqname .. " not in library")
         return 0
     end
 
     if isName then
-        req_label = tr.getStackInSlot(colossalChestSide, ie['slots'][1])['label']
+        reqlabel = tr.getStackInSlot(colossalChestSide, ie['slots'][1])['label']
     else
-        req_label = req_name
-        req_name = tr.getStackInSlot(colossalChestSide, ie['slots'][1])['label']
+        reqlabel = reqname
+        reqname = tr.getStackInSlot(colossalChestSide, ie['slots'][1])['label']
     end
 
     nextFreeSlotInShelf = 1
     if req_quant > avail_quant then
-        term.write("Only have " .. avail_quant .. " of " .. (isName and req_name or req_label) .. "\n")
+        term.write("Only have " .. avail_quant .. " of " .. (isName and reqname or reqlabel) .. "\n")
         req_quant = avail_quant
     end
 
     while moved_quant < req_quant do
-        avail_slots = ie['slots']  -- the slots that have this item
+        availslots = ie['slots']  -- the slots that have this item
         avail_quant = ie['quant']  -- quant total in library left
-        slot_quant = tr.getSlotStackSize(colossalChestSide, avail_slots[1]) -- quant left in this slot
+        slot_quant = tr.getSlotStackSize(colossalChestSide, availslots[1]) -- quant left in this slot
 
         left_quant = req_quant - moved_quant  -- quant that still needs to be moved
         moved_it = 0 -- how many items were moved in this transfer
@@ -212,32 +246,32 @@ function moveItemToShelf(req_name, req_quant, isName, player_name)
 
         -- if there is more than enough in this slot then don't delete it
         if slot_quant > left_quant then            
-            tr.transferItem(colossalChestSide, shelfChestSide, left_quant, avail_slots[1], nextFreeSlotInShelf)
+            tr.transferItem(colossalChestSide, shelfChestSide, left_quant, availslots[1], nextFreeSlotInShelf)
 
             moved_it = left_quant
         else  -- if not then empty this slot completely and delete it
-            tr.transferItem(colossalChestSide, shelfChestSide, slot_quant, avail_slots[1], nextFreeSlotInShelf)
-            -- table.remove(labelItemsInCollosal[req_label]['slots'], 1)
-            table.remove(nameItemsInCollosal[req_name]['slots'], 1)
+            tr.transferItem(colossalChestSide, shelfChestSide, slot_quant, availslots[1], nextFreeSlotInShelf)
+            -- table.remove(labelItemsInCollosal[reqlabel]['slots'], 1)
+            table.remove(nameItemsInCollosal[reqname]['slots'], 1)
 
             moved_it = slot_quant
         end
         
         -- reduce overall quantity of item by how much was moved
-        nameItemsInCollosal[req_name]['quant'] = nameItemsInCollosal[req_name]['quant'] - moved_it
-        -- labelItemsInCollosal[req_label]['quant'] = labelItemsInCollosal[req_label]['quant'] - moved_it
+        nameItemsInCollosal[reqname]['quant'] = nameItemsInCollosal[reqname]['quant'] - moved_it
+        -- labelItemsInCollosal[reqlabel]['quant'] = labelItemsInCollosal[reqlabel]['quant'] - moved_it
 
         -- if there are no more items then remove entry
-        if nameItemsInCollosal[req_name]['quant'] <= 0 then
+        if nameItemsInCollosal[reqname]['quant'] <= 0 then
             -- check that label and name items are in sync
-            -- assert(#labelItemsInCollosal[req_label]['slots'] == 0)
-            -- assert(labelItemsInCollosal[req_label]['quant'] <= 0)
+            -- assert(#labelItemsInCollosal[reqlabel]['slots'] == 0)
+            -- assert(labelItemsInCollosal[reqlabel]['quant'] <= 0)
 
             -- make sure no more slots are there
-            assert(#nameItemsInCollosal[req_name]['slots'] == 0)
+            assert(#nameItemsInCollosal[reqname]['slots'] == 0)
 
-            nameItemsInCollosal[req_name] = nil
-            -- labelItemsInCollosal[req_label] = nil
+            nameItemsInCollosal[reqname] = nil
+            -- labelItemsInCollosal[reqlabel] = nil
         end
 
         -- update total moved amount
@@ -252,7 +286,7 @@ end
 --                                             CODE                                              --
 ---------------------------------------------------------------------------------------------------
 while true do
-    player_name, key = parseEvent(event.pullMultiple("key_down", "touch"))
+    playername, key = parseEvent(event.pullMultiple("key_down", "touch"))
     archiver:suspend()
 
     term.write("\n\nenter request (name quantity): ")
@@ -263,8 +297,8 @@ while true do
         -- clear file
         io.open(fileName, 'w'):close()
         for nameIdx = 1, #names do
-            moved_quant = moveItemToShelf(names[nameIdx], quant, isName, player_name)
-            print("Put " .. moved_quant .. " of " .. names[nameIdx] .. " in " .. player_name .. "'s shelf chest")
+            moved_quant = moveItemToShelf(names[nameIdx], quant, isName, playername)
+            print("Put " .. moved_quant .. " of " .. names[nameIdx] .. " in " .. playername .. "'s shelf chest")
         end
     else
         print("invalid input. Skipping")
